@@ -1,0 +1,210 @@
+<html>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+    <!--Allows the program to adjust width/height to reflect various mobile device settings-->
+    
+    <title>Welcome to Circletap!</title>
+    <img id="splash" src="https://live.staticflickr.com/65535/48596654316_3073bc6d7a_m.jpg" alt="circletap">
+    <!--Image shared on flicker to use as a splash screen on startup.  This prompts the user to click enabling full screen mode-->
+    
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        var splash;     //holds the flicker image
+        var canvas;     //the field of play for the game
+        var canvasContext;  //how the program draws onto the canvas
+        
+        var circle = [{}];  //declaring an empty object array to store data for circles
+        
+        var timer = 0;  //this variable is used to record the time it takes to complete the game
+        var finishTime; //this variable will store the time it takes the user to turn 20 circles blue
+        var radius = 25;    //this is a default value for the radius of the circles drawn
+        var radSquare = radius * radius;    
+        //this value is used by calculations to determine if a click is inside of a circle
+                
+        var gameSwitch = "title";   //title, start, go, win, loss, pause
+        
+        window.onload = function() {    //main function called when the window loads the program
+            splash = document.getElementById('splash');
+            splash.width = window.innerWidth;
+            splash.height = window.innerHeight;
+            //this grabs the flicker image and resets its size to fill the window
+            
+            canvas = document.getElementById('gameCanvas');
+            canvas.style.display = "none"; //the canvas is hidden from view at startup
+            canvasContext = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            //this initializes the canvas, preps two-dimensional rendering on the canvas and sets the size to the window
+                    
+            var framesPerSecond = 25;   //the speed at which the program updates data
+            
+            setInterval(function() {
+                if (gameSwitch==="start" || gameSwitch==="win" || gameSwitch==="loss") {    //these game states show text to the user
+                    displayMessage();   
+                } else if (gameSwitch==="go"){  //this game state progresses the game
+                    if (timer === 0) {timer = Date.now();}  //will only get the current time if the game has just begun
+                    drawCircles();
+                }
+            }, 1000/framesPerSecond);
+            //this command/function represents the decisions the program makes during various game states
+            //it runs without user interaction
+            
+            splash.addEventListener('mousedown', clickCheck);
+            splash.addEventListener('touchend', clickCheck);
+            canvas.addEventListener('mousedown', clickCheck);
+            canvas.addEventListener('touchend', clickCheck);
+            //these commands listen to the user with either a mouse click or screen tap
+        }
+               
+        function openFullscreen() {     //activates full screen mode for various browsers
+            if (canvas.requestFullscreen) {
+                canvas.requestFullscreen();
+            } else if (canvas.mozRequestFullScreen) { /* Firefox */
+                canvas.mozRequestFullScreen();
+            } else if (canvas.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
+                canvas.webkitRequestFullscreen();
+            } else if (canvas.msRequestFullscreen) { /* IE/Edge */
+                canvas.msRequestFullscreen();
+            }
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            //once the program is in full screen, the canvas needs to be resized
+            
+            radius = (canvas.width/20 + canvas.height/20)/2;
+            radSquare = radius * radius;
+            //radius is also resized to create appropriately sized circles for the device
+            
+        }
+        
+        function displayMessage() {     //shows the user information about game state
+            canvasContext.fillStyle = 'black';
+            canvasContext.fillRect(0,0,canvas.width,canvas.height);
+            canvasContext.fillStyle="white";
+            canvasContext.textAlign = "center";
+            canvasContext.font = window.innerWidth/50 + "px serif";
+            //sets the canvas black and the font white, also aligns and sizes font to device specs
+            
+            if (gameSwitch === "win") {     //if the user wins, tell them how fast
+                canvasContext.fillText("You turned all 20 circles blue!  Congratulations!",canvas.width/2, canvas.height/3);
+                canvasContext.fillText("You completed the task in " + finishTime + " seconds!", canvas.width/2, (canvas.height/3)*2);
+            } else if (gameSwitch === "loss") {     //if the user loses, tell them how far they progressed
+                canvasContext.fillText("A circle turned red!  Your circle count was " + circle.length + "!",canvas.width/2, canvas.height/2);
+            } else if (gameSwitch === "start"){     //if the user is starting, tell them how to play
+                canvasContext.fillText("Click the circles to stop them from turning red!",canvas.width/2, canvas.height/3);
+                canvasContext.fillText("Click to start.  Good luck!",canvas.width/2, (canvas.height/3)*2);
+            }
+        }
+        
+        function resetCircles() {       //clears the circle variable, then seeds the first circle data
+            circle = [];    //however many circles there were before, now there are zero
+            circle.push({xAxis:canvas.width/2,yAxis:canvas.height/2,red:0,green:0,blue:155});
+            //creates a circle, puts it in the middle of the screen and sets it to max blue with no green tint
+            
+            timer = 0;  //this clears the timer so the user can attempt to beat a previous time
+        }
+        
+        function startOver() {  //this progresses the game state
+            if (gameSwitch === "win" || gameSwitch === "loss" || gameSwitch === "pause") {  //called at the completion of a game
+                gameSwitch = "start";
+            } else {    //called when the user is ready to begin another round of play
+                resetCircles();
+                gameSwitch = "go";
+            } 
+            canvasContext.fillStyle = 'black';
+            canvasContext.fillRect(0,0,canvas.width,canvas.height);
+            //repaints the canvas black to clear text from view
+        }
+        
+        function clickCheck(evt){   //called to handle user interaction events (both mouse clicks and screen touches)
+            if (gameSwitch === "go") {      //prime interaction game state
+                var rect = canvas.getBoundingClientRect();  //gets the smallest rectangle the canvas can fit into
+                var root = document.documentElement; //gets the whole html document
+                      
+                var mouseX = evt.clientX - rect.left - root.scrollLeft;
+                var mouseY = evt.clientY - rect.top - root.scrollTop;
+                //these get the coordinates where the user clicked/touched
+                //evt.client is the click factoring in any scroll bars or header bars
+                //that are forced on screen by various mobile devices
+                //also allows program to accurately run outside of full screen mode
+            
+                for (var i=0; i<circle.length; i++){    //runs through the circles to see if a click is inside one
+                    var xTest = (mouseX - circle[i].xAxis) * (mouseX - circle[i].xAxis);
+                    var yTest = (mouseY - circle[i].yAxis) * (mouseY - circle[i].yAxis);
+                    var testTotal = xTest + yTest;
+                    //prep test
+                
+                    if (testTotal < radSquare) {      //a^2 + b^2 = c^2 plots the area along the outside of the circle  
+                        circle[i].blue+=200;
+                        circle[i].red-=200;
+                    }       //if the click/touch is less than radius^2, it happened inside the circle
+                }
+                if (isBlue()) {     //checks to see if all the circles are blue
+                    var coordX = Math.floor(Math.random() * (canvas.width-radius*2)) + radius;
+                    var coordY = Math.floor(Math.random() * (canvas.height-radius*2)) + radius;
+                    //finds new coordinates to create a circle
+                    while (isOverlap(coordX,coordY)) {  //checks to see if the new circle will overlap a current one
+                        coordX = Math.floor(Math.random() * (canvas.width-radius*2)) + radius;
+                        coordY = Math.floor(Math.random() * (canvas.height-radius*2)) + radius;
+                    }       //keeps running until it finds an open place for a new circle
+                    circle.push({xAxis:coordX,yAxis:coordY,red:0,green:Math.floor(Math.random() * 100),blue:155});
+                    //adds the new circle to the end of the object array choosing a green tint for variance
+                }
+            } else if (gameSwitch === "title") {    //if the user clicks/touches while the splash screen is up
+                splash.style.display = "none";      //hide the splash screen
+                openFullscreen();                   //call function to open full screen mode
+                canvas.style.display = "inline-block";  //shows the canvas
+                gameSwitch= "pause";                //pauses the game state to allow changes to take place
+                setTimeout(startOver,1000);         //delays the call to start over allowing more time for the device to update
+            } else if (gameSwitch === "start") {    //reset to full screen for optimal experience each new game
+                openFullscreen();
+                startOver();
+            } else if (gameSwitch==="win" || gameSwitch==="loss") {     //if the user has completed the game
+                gameSwitch = "pause";                                   //pause to see game message
+                setTimeout(startOver,3000);     //user may click/touch through message so delay 3 seconds before progressing game state
+            }
+            
+        }
+        
+        function isBlue() {     //checks all circles, if any are not fully blue return false, otherwise return true
+            for (var i=0; i<circle.length; i++) {
+                if (circle[i].blue<=155) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function isOverlap(x,y){    //checks all circles to see if random cooordinates create overlap with current circles
+                                    //returns true if potential new circle will overlap and false if new circle is good to go
+            for (var i=0; i<circle.length; i++) {
+                var test = Math.sqrt((Math.pow(x - circle[i].xAxis,2))+(Math.pow(y - circle[i].yAxis,2)));
+                if (test < radius*2){
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        function drawCircles() {    //last but not least, this draws the circles
+            for (var i=0; i<circle.length; i++){    //will draw each circle in the array
+                var circleColor = "rgb("+circle[i].red+","+circle[i].green+","+circle[i].blue+")"   //get color string for circle
+                canvasContext.fillStyle = circleColor;
+                canvasContext.beginPath();
+                canvasContext.arc(circle[i].xAxis, circle[i].yAxis, radius, 0, Math.PI*2, true);
+                canvasContext.fill();
+                //draws the circle in the correct color
+                
+                circle[i].red++;    //progress the increased red value of the circle
+                circle[i].blue--;   //progress the decreased blue value of the circle
+                
+                if (circle[i].red===155) {  //checks to see if the circle has turned completely red
+                    gameSwitch="loss";      //the user lost prompting the interval to display that text
+                } else if (circle.length > 20) {    //if the user didn't lose, checks to see if they won
+                    gameSwitch="win";               //the user won prompting the interval to display that text
+                    finishTime = (Date.now()-timer)/1000;   //gets the exact time of win
+                } 
+            }
+        }
+
+    </script>    
+</html>
